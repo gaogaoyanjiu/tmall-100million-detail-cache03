@@ -1,0 +1,151 @@
+
+openresty，我们之前都给大家讲解过了
+
+部署了两台虚拟机
+
+模拟的场景是什么，假设这两台虚拟机分别在不同的机房中，每个机房里都有一台机器，所以按照我们之前讲解的那套双机房的四级缓存架构
+
+部署nginx，虚拟机，每台机器上，部署两个nginx，一个是分发层nginx，一个是应用层nginx
+
+在实际生产环境中
+
+1、部署第一个nginx
+
+（1）部署openresty
+
+mkdir -p /usr/servers  
+cd /usr/servers/
+
+yum install -y readline-devel pcre-devel openssl-devel gcc
+
+wget http://openresty.org/download/ngx_openresty-1.7.7.2.tar.gz  
+tar -xzvf ngx_openresty-1.7.7.2.tar.gz  
+cd /usr/servers/ngx_openresty-1.7.7.2/
+
+cd bundle/LuaJIT-2.1-20150120/  
+make clean && make && make install  
+ln -sf luajit-2.1.0-alpha /usr/local/bin/luajit
+
+cd bundle  
+wget https://github.com/FRiCKLE/ngx_cache_purge/archive/2.3.tar.gz  
+tar -xvf 2.3.tar.gz  
+
+cd bundle  
+wget https://github.com/yaoweibin/nginx_upstream_check_module/archive/v0.3.0.tar.gz  
+tar -xvf v0.3.0.tar.gz  
+
+cd /usr/servers/ngx_openresty-1.7.7.2  
+./configure --prefix=/usr/servers --with-http_realip_module  --with-pcre  --with-luajit --add-module=./bundle/ngx_cache_purge-2.3/ --add-module=./bundle/nginx_upstream_check_module-0.3.0/ -j2  
+make && make install 
+
+cd /usr/servers/  
+ll
+
+/usr/servers/luajit
+/usr/servers/lualib
+/usr/servers/nginx
+/usr/servers/nginx/sbin/nginx -V 
+
+启动nginx: /usr/servers/nginx/sbin/nginx
+
+（2）nginx+lua开发的hello world
+
+vi /usr/servers/nginx/conf/nginx.conf
+
+在http部分添加：
+
+lua_package_path "/usr/servers/lualib/?.lua;;";  
+lua_package_cpath "/usr/servers/lualib/?.so;;";  
+
+/usr/servers/nginx/conf下，创建一个lua.conf
+
+server {  
+    listen       80;  
+    server_name  _;  
+}  
+
+在nginx.conf的http部分添加：
+
+include lua.conf;
+
+验证配置是否正确：
+
+/usr/servers/nginx/sbin/nginx -t
+
+在lua.conf的server部分添加：
+
+location /lua {  
+    default_type 'text/html';  
+    content_by_lua 'ngx.say("hello world")';  
+} 
+
+/usr/servers/nginx/sbin/nginx -t  
+
+重新nginx加载配置
+
+/usr/servers/nginx/sbin/nginx -s reload  
+
+访问http: http://192.168.31.187/lua
+
+vi /usr/servers/nginx/conf/lua/test.lua
+
+ngx.say("hello world"); 
+
+修改lua.conf
+
+location /lua {  
+    default_type 'text/html';  
+    content_by_lua_file conf/lua/test.lua; 
+}
+
+查看异常日志
+
+tail -f /usr/servers/nginx/logs/error.log
+
+（3）工程化的nginx+lua项目结构
+
+项目工程结构
+
+hello
+    hello.conf     
+    lua              
+      hello.lua
+    lualib            
+      *.lua
+      *.so
+
+放在/usr/hello目录下
+
+/usr/servers/nginx/conf/nginx.conf
+
+worker_processes  2;  
+
+error_log  logs/error.log;  
+
+events {  
+    worker_connections  1024;  
+}  
+
+http {  
+    include       mime.types;  
+    default_type  text/html;  
+  
+    lua_package_path "/usr/hello/lualib/?.lua;;";  
+    lua_package_cpath "/usr/hello/lualib/?.so;;"; 
+    include /usr/hello/hello.conf;  
+}  
+
+/usr/hello/hello.conf
+
+server {  
+    listen       80;  
+    server_name  _;  
+  
+    location /lua {  
+        default_type 'text/html';  
+        lua_code_cache off;  
+        content_by_lua_file /usr/example/lua/test.lua;  
+    }  
+}  
+
+

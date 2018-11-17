@@ -1,0 +1,137 @@
+
+1、部署redis
+
+tar -zxvf redis-2.8.19.tar.gz --版本过旧，实际在做类似这种nginx+lua生产环境的部署的时候，不一定用最新的版本就是最好，老版本一般比较稳定，nginx+lua整合，用老点的版本，会比较保险一些
+cd redis-2.8.19
+make
+
+nohup /usr/local/redis-test/redis-2.8.19/src/redis-server  /usr/local/redis-test/redis-2.8.19/redis.conf &  
+
+ps -aux | grep redis
+
+/usr/local/redis-test/redis-2.8.19/src/redis-cli -p 6379  
+
+set k1 v1
+get k1
+
+2、twemproxy部署
+
+yum install -y autoconf automake libtool
+
+yum remove -y autoconf --直接将autoconf和automake、libtool都删除掉了
+
+wget ftp://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.gz
+tar -zxvf autoconf-2.69.tar.gz
+cd autoconf-2.69 
+./configure --prefix=/usr
+make && make install
+
+wget http://ftp.gnu.org/gnu/automake/automake-1.14.tar.gz
+tar -zxvf automake-1.14.tar.gz 
+cd automake-1.14
+./bootstrap.sh
+./configure --prefix=/usr
+make && make install
+
+wget http://ftpmirror.gnu.org/libtool/libtool-2.4.2.tar.gz
+tar -zxvf libtool-2.4.2.tar.gz
+cd libtool-2.4.2
+./configure --prefix=/usr
+make && make install
+
+tar -zxvf twemproxy-0.4.0.tar.gz
+
+cd twemproxy-0.4.0
+
+autoreconf -fvi
+./configure && make
+
+vi /usr/local/twemproxy-test/twemproxy-0.4.0/conf/nutcracker.yml  
+
+server1:  
+  listen: 127.0.0.1:1111  
+  hash: fnv1a_64  
+  distribution: ketama  
+  redis: true  
+  servers:  
+   - 127.0.0.1:6379:1 
+
+/usr/local/twemproxy-test/twemproxy-0.4.0/src/nutcracker -d -c /usr/local/twemproxy-test/twemproxy-0.4.0/conf/nutcracker.yml 
+
+ps -aux | grep nutcracker
+
+/usr/local/redis-test/redis-2.8.19/src/redis-cli -p 1111  
+
+get k1
+set k1 v2
+get k1
+
+3、redis配置
+
+redis.conf
+
+port 6379
+logfile ""
+maxmemory 100mb
+maxmemory-policy volatile-lru
+maxmemory-samples 10
+
+4、redis主从
+
+cp redis.conf redis_6379.conf
+cp redis.conf redis_6380.conf
+
+两份文件分别将端口设置为6379和6380
+
+分别启动两个redis实例
+
+nohup /usr/local/redis-2.8.19/src/redis-server  /usr/local/redis-2.8.19/redis_6379.conf &  
+nohup /usr/local/redis-2.8.19/src/redis-server  /usr/local/redis-2.8.19/redis_6380.conf &
+
+ps -aux | grep redis 
+
+通过从实例客户端挂载主从
+
+/usr/local/redis-2.8.19/src/redis-cli  -p 6380
+
+slaveof 127.0.0.1 6379
+
+info replication
+
+/usr/local/redis-2.8.19/src/redis-cli -p 6379
+
+set k2 v2
+
+/usr/local/redis-2.8.19/src/redis-cli -p 6380
+
+get k2
+
+5、twemproxy讲解
+
+eshop-detail-test:  
+  listen: 127.0.0.1:1111  
+  hash: fnv1a_64  
+  distribution: ketama  
+  timeout:1000  
+  redis: true  
+  servers:  
+   - 127.0.0.1:6379:1 test-redis-01 
+   - 127.0.0.1:6380:1 test-redis-02
+
+eshop-detail-test: redis集群的逻辑名称
+listen：twemproxy监听的端口号
+hash：hash散列算法
+distribution：分片算法，一致性hash，取模，等等
+timeout：跟redis连接的超时时长
+redis：是否是redis，false的话是memcached
+servers：redis实例列表，一定要加别名，否则默认使用ip:port:weight来计算分片，如果宕机后更换机器，那么分片就不一样了，因此加了别名后，可以确保分片一定是准确的
+
+你的客户端，java/nginx+lua，连接twemproxy，写数据的时候，twemproxy负责将数据分片，写入不同的redis实例
+   
+如果某个redis机器宕机，需要自动从一致性hash环上摘掉，等恢复后自动上线
+
+auto_eject_hosts: true，自动摘除故障节点
+server_retry_timeout: 30000，每隔30秒判断故障节点是否正常，如果正常则放回一致性hash环
+server_failure_limit: 2，多少次无响应，就从一致性hash环中摘除
+
+一致性hash，前面讲解果了
