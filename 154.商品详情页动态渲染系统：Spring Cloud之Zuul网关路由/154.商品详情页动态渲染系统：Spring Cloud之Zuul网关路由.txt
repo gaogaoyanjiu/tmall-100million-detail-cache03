@@ -1,0 +1,170 @@
+
+常规的spring cloud的微服务架构下
+
+前端请求先通过nginx走到zuul网关服务，zuul负责路由转发、请求过滤等网关接入层的功能，默认和ribbon整合实现了负载均衡
+
+比如说你有20个服务，暴露出去，你的调用方，如果要跟20个服务打交道，是不是很麻烦
+
+所以比较好的一个方式，就是开发一个通用的zuul路由转发的服务，根据请求api模式，动态将请求路由转发到对应的服务
+
+你的前端，主要考虑跟一个服务打交道就可以了
+
+1、创建zuul-server工程
+
+2、pom.xml
+
+<parent>
+	<groupId>org.springframework.boot</groupId>
+	<artifactId>spring-boot-starter-parent</artifactId>
+	<version>1.5.2.RELEASE</version>
+	<relativePath/> <!-- lookup parent from repository -->
+</parent>
+
+<properties>
+	<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+	<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+	<java.version>1.8</java.version>
+</properties>
+
+<dependencies>
+	<dependency>
+		<groupId>org.springframework.cloud</groupId>
+		<artifactId>spring-cloud-starter-eureka</artifactId>
+	</dependency>
+	<dependency>
+		<groupId>org.springframework.cloud</groupId>
+		<artifactId>spring-cloud-starter-zuul</artifactId>
+	</dependency>
+	<dependency>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-web</artifactId>
+	</dependency>
+
+	<dependency>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-test</artifactId>
+		<scope>test</scope>
+	</dependency>
+</dependencies>
+
+<dependencyManagement>
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-dependencies</artifactId>
+			<version>Dalston.RC1</version>
+			<type>pom</type>
+			<scope>import</scope>
+		</dependency>
+	</dependencies>
+</dependencyManagement>
+
+<build>
+	<plugins>
+		<plugin>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-maven-plugin</artifactId>
+		</plugin>
+	</plugins>
+</build>
+
+<repositories>
+	<repository>
+		<id>spring-milestones</id>
+		<name>Spring Milestones</name>
+		<url>https://repo.spring.io/milestone</url>
+		<snapshots>
+			<enabled>false</enabled>
+		</snapshots>
+	</repository>
+</repositories>
+
+3、Application
+
+@EnableZuulProxy
+@EnableEurekaClient
+@SpringBootApplication
+public class ServiceZuulApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(ServiceZuulApplication.class, args);
+    }
+	
+}
+
+4、application.yml
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+server:
+  port: 8766
+spring:
+  application:
+    name: zuul-server
+zuul:
+  routes:
+    say-hello:
+      path: /say/hello/**
+      serviceId: say-hello-service
+    greeting:
+      path: /greeting/**
+      serviceId: greeting-service
+
+5、修改代码
+
+在greeting-service中的返回值加入自己的标识
+
+6、运行，依次走两种不同的api接口，zuul会路由到不同的服务上去
+
+7、请求过滤
+
+@Component
+public class UserLoginFilter extends ZuulFilter {
+
+    private static Logger logger = LoggerFactory.getLogger(UserLoginFilter.class);
+	
+	// pre，routing，post，error
+    @Override
+    public String filterType() {
+        return "pre";
+    }
+
+	// 顺序
+    @Override
+    public int filterOrder() {
+        return 0;
+    }
+
+	// 根据逻辑判断是否要过滤
+    @Override
+    public boolean shouldFilter() {
+        return true;
+    }
+
+    @Override
+    public Object run() {
+        RequestContext ctx = RequestContext.getCurrentContext();
+        HttpServletRequest request = ctx.getRequest();
+        log.info(String.format("%s >>> %s", request.getMethod(), request.getRequestURL().toString()));
+		
+        Object userId = request.getParameter("userId");
+		
+        if(userId == null) {
+            log.warn("userId is empty");
+            ctx.setSendZuulResponse(false);
+            ctx.setResponseStatusCode(401);
+            try {
+                ctx.getResponse().getWriter().write("userId is empty");
+            }catch (Exception e){}
+
+            return null;
+        }
+		
+        log.info("ok");
+		
+        return null;
+    }
+	
+}

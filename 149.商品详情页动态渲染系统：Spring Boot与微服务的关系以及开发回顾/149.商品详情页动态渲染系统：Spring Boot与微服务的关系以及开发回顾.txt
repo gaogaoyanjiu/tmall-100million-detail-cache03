@@ -1,0 +1,36 @@
+
+第一版的内容里，spring boot也用了，但是几乎没什么介绍，主要是什么原因呢？
+
+龙果是很多课都之前都有了，spring boot专门有了一套课程去见解的，所以我当时就没多说什么
+
+spring cloud，很多人之前都说基于spring boot的微服务
+
+1、Spring Boot的特点
+
+（1）快速开发spring应用的框架
+
+spring mvc+spring+mybatis，首先配置一大堆xml配置文件，其次部署和安装tomcat，jetty等容器，跟java web打交道
+
+跟servlet，listener，filter，打交道
+
+手工部署到tomcat或者jetty等容器中，发布一个web应用
+
+spring boot，简单来说，就是看中了这种java web应用繁琐而且重复的开发流程，采用了spring之上封装的一套框架，spring boot，简化整个这个流程
+
+尽可能提升我们的开发效率，让我们专注于自己的业务逻辑即可
+
+（2）内嵌tomcat和jetty容器，不需要单独安装容器，jar包直接发布一个web应用
+（3）简化maven配置，parent这种方式，一站式引入需要的各种依赖
+（4）基于注解的零配置思想
+（5）和各种流行框架，spring web mvc，mybatis，spring cloud无缝整合
+
+2、Spring Boot和微服务
+
+（1）spring boot不是微服务技术
+（2）spring boot只是一个用于加速开发spring应用的基础框架，简化工作，开发单块应用很适合
+（3）如果要直接基于spring boot做微服务，相当于需要自己开发很多微服务的基础设施，比如基于zookeeper来实现服务注册和发现
+（4）spring cloud才是微服务技术
+
+3、Spring Boot的入门开发
+
+参照之前的库存服务的spring boot，整合搭建一个spring boot

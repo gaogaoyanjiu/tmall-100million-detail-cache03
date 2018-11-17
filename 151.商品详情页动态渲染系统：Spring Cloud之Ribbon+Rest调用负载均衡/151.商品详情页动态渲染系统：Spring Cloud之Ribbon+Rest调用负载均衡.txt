@@ -1,0 +1,148 @@
+
+上一讲，我们已经知道如何发布一个eureka注册中心，然后也知道如何发布一个服务注册到eureka server
+
+这一讲，就来学习，如何开发另外一个服务，来通过eureka server发现其他服务，并且调用其他服务，通过ribbon+rest，RestTemplate调用rest服务接口，ribbon多个服务实例的负载均衡
+
+1、将say-hello-service的port修改为8673，再启动一个实例
+
+在生产环境中，肯定是一个服务会发布在多台机器上，每个机器上发布的服务，就是一个服务实例，多个服务实例实际上就组成了一个集群
+
+2、创建一个新的工程，叫做greeting-service
+
+（1）pom.xml
+
+<parent>
+	<groupId>org.springframework.boot</groupId>
+	<artifactId>spring-boot-starter-parent</artifactId>
+	<version>1.5.2.RELEASE</version>
+	<relativePath/> <!-- lookup parent from repository -->
+</parent>
+
+<properties>
+	<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+	<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+	<java.version>1.8</java.version>
+</properties>
+
+<dependencies>
+	<dependency>
+		<groupId>org.springframework.cloud</groupId>
+		<artifactId>spring-cloud-starter-eureka</artifactId>
+	</dependency>
+	<dependency>
+		<groupId>org.springframework.cloud</groupId>
+		<artifactId>spring-cloud-starter-ribbon</artifactId>
+	</dependency>
+	<dependency>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-web</artifactId>
+	</dependency>
+
+	<dependency>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-test</artifactId>
+		<scope>test</scope>
+	</dependency>
+</dependencies>
+
+<dependencyManagement>
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-dependencies</artifactId>
+			<version>Dalston.RC1</version>
+			<type>pom</type>
+			<scope>import</scope>
+		</dependency>
+	</dependencies>
+</dependencyManagement>
+
+<build>
+	<plugins>
+		<plugin>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-maven-plugin</artifactId>
+		</plugin>
+	</plugins>
+</build>
+
+<repositories>
+	<repository>
+		<id>spring-milestones</id>
+		<name>Spring Milestones</name>
+		<url>https://repo.spring.io/milestone</url>
+		<snapshots>
+			<enabled>false</enabled>
+		</snapshots>
+	</repository>
+</repositories>
+
+（2）application.yml
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+server:
+  port: 8764
+spring:
+  application:
+    name: greeting-service
+	
+（3）Application
+
+// @EnableDiscoveryClient，向eureka注册自己作为一个服务的调用client
+// 之前的服务，EnableEurekaClient，代表的是向eureka注册自己，将自己作为一个服务
+@SpringBootApplication
+@EnableDiscoveryClient
+public class GreetingServiceApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(GreetingServiceApplication.class, args);
+    }
+	
+	// 在spring容器中注入一个bean，RestTemplate，作为rest服务接口调用的客户端
+	// @LoadBalanced标注，代表对服务多个实例调用时开启负载均衡
+    @Bean
+    @LoadBalanced
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
+    }
+
+}
+
+（4）调用say-hello-service
+
+// 写一个服务，注入RestTemplate服务调用客户端
+@Service
+public class GreetingService {
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+	// 用SAY-HELLO-SERVICE这个服务名替代实际的ip地址
+	// ribbon负载在多个服务实例之间负载均衡，每次调用随机挑选一个实例，然后替换服务名
+    public String greeting(String name) {
+        return restTemplate.getForObject("http://SAY-HELLO-SERVICE/sayHello?name="+name, String.class);
+    }
+
+}
+
+（5）controller
+
+@RestController
+public class GreetingControler {
+
+    @Autowired
+    private GreetingService greetingService;
+	
+    @RequestMapping(value = "/greeting")
+    public String greeting(@RequestParam String name){
+        return greetingService.greeting(name);
+    }
+
+}
+
+（6）多次访问http://localhost:8764/greeting?name=leo，发现每次访问的端口都不一样，在多个服务实例之间负载均衡了
+	
+	

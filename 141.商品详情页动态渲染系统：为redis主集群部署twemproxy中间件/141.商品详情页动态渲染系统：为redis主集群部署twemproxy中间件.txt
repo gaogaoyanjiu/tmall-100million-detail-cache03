@@ -1,0 +1,50 @@
+
+yum install -y autoconf automake libtool
+
+yum remove -y autoconf --直接将autoconf和automake、libtool都删除掉了
+
+wget ftp://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.gz
+tar -zxvf autoconf-2.69.tar.gz
+cd autoconf-2.69 
+./configure --prefix=/usr
+make && make install
+
+wget http://ftp.gnu.org/gnu/automake/automake-1.14.tar.gz
+tar -zxvf automake-1.14.tar.gz 
+cd automake-1.14
+./bootstrap.sh
+./configure --prefix=/usr
+make && make install
+
+wget http://ftpmirror.gnu.org/libtool/libtool-2.4.2.tar.gz
+tar -zxvf libtool-2.4.2.tar.gz
+cd libtool-2.4.2
+./configure --prefix=/usr
+make && make install
+
+tar -zxvf twemproxy-0.4.0.tar.gz
+
+cd twemproxy-0.4.0
+
+autoreconf -fvi
+./configure && make
+
+vi conf/nutcracker.yml  
+
+server1:  
+  listen: 127.0.0.1:1111  
+  hash: fnv1a_64  
+  distribution: ketama  
+  redis: true  
+  servers:  
+   - 127.0.0.1:6379:1 
+
+src/nutcracker -d -c ../conf/nutcracker.yml 
+
+ps -aux | grep nutcracker
+
+src/redis-cli -p 1111  
+
+get k1
+set k1 v2
+get k1

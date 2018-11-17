@@ -1,0 +1,99 @@
+
+接下来就要进入正式的业务系统开发，各种设计思路，各种基础环境的搭建（课程中的生产环境），基础知识（spring boot，spring cloud）
+
+体会到我之前的苦心，为什么第一版的内容，一开始做的时候，没有想要做一个特别大而全的系统架构，就是找准里面几个点深入去讲解呢？因为完整的架构涉及到的东西太多了。要讲解的细枝末节特别多，满足各位同学的心愿，微服务的项目实战，商品详情页系统就涉及到很多服务，服务之间的高可用。
+
+但是，我们尽可能将需要的环境，比如说mysql，rabbitmq，redis，尽量在本地都部署一份，平时开发，就在本地玩儿就可以了
+
+我这个是老电脑，12G内存，2台虚拟机启动，6g，再启动一个eclipse，里面跑一大堆的服务，12g内存几乎吃满
+
+尽可能讲课的过程中，不要又是启动虚拟机，又是启动eclipse跑服务，尽可能就是要么在本机开发，测试，相当于是我们平时工作中的开发环境
+
+要么就是最终完全课程讲完之后，全部使用微服务的方式部署各种服务到虚拟机模拟的生产环境中去，跑通整个流程
+
+0、在windows上安装mysql数据库，方便测试和开发
+
+我本来这个老电脑上，本机就有一个mysql数据库，大家自己装的话，百度一下，官网下载个安装包，作为windows服务启动即可
+
+再下载一个SQLYog数据库管理工具
+
+spring boot+spring cloud，本身自带了spring web mvc的支持，mybatis整合起来，可以操作数据库
+
+1、pom.xml
+
+<dependency>
+	<groupId>mysql</groupId>
+	<artifactId>artifactId</artifactId>
+</dependency>
+<dependency>
+	<groupId>org.mybatis.spring.boot</groupId>
+	<artifactId>mybatis-spring-boot-starter</artifactId>
+	<version>1.1.1</version>
+</dependency>
+<dependency>
+	<groupId>com.alibaba</groupId>
+	<artifactId>druid</artifactId>
+	<version>1.0.18</version>
+</dependency>
+
+2、application.yml
+
+spring: 
+  datasource: 
+    type: com.alibaba.druid.pool.DruidDataSource
+    platform: mysql
+    url: jdbc:mysql://192.168.31.223:3306/eshop
+    username: root
+    password: root
+
+3、User
+
+public class User {
+	
+	private Long id;
+	private String name;
+	private Integer age;
+	
+}
+
+4、UserMapper
+
+@Mapper
+public interface UserMapper {
+	
+	@Select("select * from users")
+	List<User> findAllUsers();
+	
+}
+	
+5、UserService
+
+@Service
+public class UserService {
+	
+	@Autowired
+	private UserMapper userMapper;
+	
+	public List<User> findAllUsers() {
+		return userMapper.findAllUsers();
+	}
+	
+}
+
+6、UserController
+
+@RestController
+public class UserController {
+	
+	@Autowrite
+	private UserService userService;
+	
+	@RequestMapping("/findAllUsers")
+	@ResponseEntity
+	public List<User> findAllUsers() {
+		return userService.findAllUsers();
+	}
+	
+}
+
+跟mybatis整合成功，可以操作数据库

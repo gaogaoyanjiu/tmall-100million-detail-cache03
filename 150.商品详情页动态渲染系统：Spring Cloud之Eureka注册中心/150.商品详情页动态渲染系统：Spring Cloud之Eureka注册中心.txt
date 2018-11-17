@@ -1,0 +1,216 @@
+
+我们大概会通过七八讲的时间，来讲解一下spring cloud这个东西，不会太深入，spring cloud课
+
+1、什么是注册中心
+
+（1）就是首先有一个eureka server，服务的注册与发现的中心
+（2）你如果写好了一个服务，就可以将其注册到eureka server上去
+（3）然后别人的服务如果要调用你的服务，就可以从eureka server上查找你的服务所在的地址，然后调用
+
+2、Eureka基本原理
+
+（1）服务都会注册到eureka的注册表
+（2）eureka有心跳机制，自动检测服务，故障时自动从注册表中摘除
+（3）每个服务也会缓存euraka的注册表，即使eureka server挂掉，每个服务也可以基于本地注册表缓存，与其他服务进行通信
+（4）只不过是如果eureka server挂掉了，那么无法发布新的服务了
+
+实验步骤
+
+（1）启动和发布一个eureka server，注册中心，web界面可以看到所有注册的服务
+（2）写一个hello world服务，注册到eureka server上去
+
+3、eureka server
+
+（1）pom.xml
+
+<parent>
+	<groupId>org.springframework.boot</groupId>
+	<artifactId>spring-boot-starter-parent</artifactId>
+	<version>1.5.2.RELEASE</version>
+	<relativePath/> <!-- lookup parent from repository -->
+</parent>
+
+<properties>
+	<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+	<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+	<java.version>1.8</java.version>
+</properties>
+
+<dependencies>
+	<!--eureka server -->
+	<dependency>
+		<groupId>org.springframework.cloud</groupId>
+		<artifactId>spring-cloud-starter-eureka-server</artifactId>
+	</dependency>
+
+	<!-- spring boot test-->
+	<dependency>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-test</artifactId>
+		<scope>test</scope>
+	</dependency>
+</dependencies>
+
+<dependencyManagement>
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-dependencies</artifactId>
+			<version>Dalston.RC1</version>
+			<type>pom</type>
+			<scope>import</scope>
+		</dependency>
+	</dependencies>
+</dependencyManagement>
+
+<build>
+	<plugins>
+		<plugin>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-maven-plugin</artifactId>
+		</plugin>
+	</plugins>
+</build>
+
+<repositories>
+	<repository>
+		<id>spring-milestones</id>
+		<name>Spring Milestones</name>
+		<url>https://repo.spring.io/milestone</url>
+		<snapshots>
+			<enabled>false</enabled>
+		</snapshots>
+	</repository>
+</repositories>
+
+（2）Application
+
+@EnableEurekaServer
+@SpringBootApplication
+public class EurekaServerApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(EurekaServerApplication.class, args);
+    }
+}
+
+（3）application.yml
+
+server:
+  port: 8761
+
+eureka:
+  instance:
+    hostname: localhost
+  client:
+    registerWithEureka: false
+    fetchRegistry: false
+    serviceUrl:
+      defaultZone: http://${eureka.instance.hostname}:${server.port}/eureka/
+	  
+（4）访问8761端口
+
+4、eureka client
+
+（1）pom.xml
+
+<parent>
+	<groupId>org.springframework.boot</groupId>
+	<artifactId>spring-boot-starter-parent</artifactId>
+	<version>1.5.2.RELEASE</version>
+	<relativePath/> <!-- lookup parent from repository -->
+</parent>
+
+<properties>
+	<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+	<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+	<java.version>1.8</java.version>
+</properties>
+
+<dependencies>
+	<dependency>
+		<groupId>org.springframework.cloud</groupId>
+		<artifactId>spring-cloud-starter-eureka</artifactId>
+	</dependency>
+	<dependency>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-web</artifactId>
+	</dependency>
+
+	<dependency>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-test</artifactId>
+		<scope>test</scope>
+	</dependency>
+</dependencies>
+
+<dependencyManagement>
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-dependencies</artifactId>
+			<version>Dalston.RC1</version>
+			<type>pom</type>
+			<scope>import</scope>
+		</dependency>
+	</dependencies>
+</dependencyManagement>
+
+<build>
+	<plugins>
+		<plugin>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-maven-plugin</artifactId>
+		</plugin>
+	</plugins>
+</build>
+
+<repositories>
+	<repository>
+		<id>spring-milestones</id>
+		<name>Spring Milestones</name>
+		<url>https://repo.spring.io/milestone</url>
+		<snapshots>
+			<enabled>false</enabled>
+		</snapshots>
+	</repository>
+</repositories>
+
+（2）Application
+
+@SpringBootApplication
+@EnableEurekaClient
+@RestController
+public class SayHelloServiceApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(SayHelloServiceApplication.class, args);
+    }
+
+    @Value("${server.port}")
+    String port;
+    @RequestMapping("/sayHello")
+    public String home(@RequestParam String name) {
+        return "hello, " + name + " from port:" +port;
+    }
+
+}
+
+（3）application.yml
+
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+server:
+  port: 8762
+spring:
+  application:
+    name: service-say-hello
+
+（4）查看eureka server界面
+
+（5）http://localhost:8762/sayHello?name=leo
+
+
+	

@@ -1,0 +1,22 @@
+
+1、pom.xml
+
+<dependency>  
+    <groupId>org.springframework.boot</groupId>  
+    <artifactId>spring-boot-starter-security</artifactId>  
+</dependency>  
+
+2、application.yml
+
+security:  
+  basic:  
+    enabled: true  
+  user:  
+    name: admin  
+    password: 123456
+
+3、访问http://localhost:8761/，需要输入用户名和密码	
+
+基于spring cloud提供的一整套技术：服务注册与发现，声明式的服务调用，熔断降级，网关路由，统一配置，链路追踪
+
+来开发我们的商品详情页系统

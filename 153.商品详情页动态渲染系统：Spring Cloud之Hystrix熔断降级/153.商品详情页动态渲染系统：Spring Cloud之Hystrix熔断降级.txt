@@ -1,0 +1,182 @@
+
+微服务架构，很重要的就是多个服务之间互相调用，很可能某个服务就死了，然后依赖它的其他服务调用大量超时，最后耗尽资源，继续死，最终导致整个系统崩盘
+
+hystrix去做资源隔离，限流，熔断，降级
+
+1、让greeting-service支持hystrix
+
+（1）pom.xml
+
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-hystrix</artifactId>
+</dependency>
+
+（2）application.xml
+
+feign.hystrix.enabled=true
+
+（3）SayHelloService
+
+@FeignClient(value = "say-hello-service", fallback = SayHelloServiceFallback.class)  
+public interface SayHelloService {
+
+	@RequestMapping(value = "/sayHello", method = RequestMethod.GET)
+	public String sayHello(@RequestParam(value = "name") String name);
+	
+}
+
+（4）SayHelloServiceFallback
+
+@Component
+public class SayHelloServiceFallback implements SayHelloService {
+
+    @Override
+    public String sayHello(String name) {
+        return "error, " + name;
+    }
+	
+}
+
+（5）先保持SayHelloService启动，可以访问; 关闭SayHelloSerivce，再访问，调用失败直接走降级
+
+包括限流，自动熔断，调用失败，都会走降级
+
+2、hystrix dashboard
+
+（1）pom.xml
+
+<dependency>
+	<groupId>org.springframework.boot</groupId>
+	<artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+<dependency>
+	<groupId>org.springframework.cloud</groupId>
+	<artifactId>spring-cloud-starter-hystrix-dashboard</artifactId>
+</dependency>
+
+（2）Application
+
+@EnableHystrixDashboard
+@EnableCircuitBreaker
+
+（3）http://localhost:8764/hystrix
+
+输入http://localhost:8764/hystrix.stream和title
+
+访问接口，会在hystrix dashboard看到访问请求
+
+3、改造say-hello-service支持hystrix
+
+将一个服务多个实例的指标聚合起来看，改造say-hello-service
+
+（1）pom.xml
+
+<dependency>
+	<groupId>org.springframework.boot</groupId>
+	<artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+<dependency>
+	<groupId>org.springframework.cloud</groupId>
+	<artifactId>spring-cloud-starter-hystrix-dashboard</artifactId>
+</dependency>
+<dependency>
+	<groupId>org.springframework.cloud</groupId>
+	<artifactId>spring-cloud-starter-hystrix</artifactId>
+</dependency>
+
+（2）Application
+
+@SpringBootApplication
+@EnableEurekaClient
+@RestController
+@EnableHystrix
+@EnableHystrixDashboard
+@EnableCircuitBreaker
+public class SayHelloServiceApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(SayHelloServiceApplication.class, args); 
+	}
+	
+	@Value("${server.port}")
+	private String port;
+	
+	@RequestMapping("/sayHello")
+	@HystrixCommand(fallbackMethod = "sayHelloFallback")
+	public String sayHello(String name) {
+		return "hello, " + name + " from port: " + port;
+	}
+	
+	public String sayHelloFallback(String name) {
+		return "error, " + name
+	}
+	
+}
+
+（3）locahost:8762/hystrix
+
+输入locahost:8762/hystrix.stream，2000，title
+
+访问这个接口
+
+4、创建turbin工程，hystrix-turbine-server
+
+（1）pom.xml
+
+<dependency>
+	<groupId>org.springframework.cloud</groupId>
+	<artifactId>spring-cloud-starter-turbine</artifactId>
+</dependency>
+<dependency>
+	<groupId>org.springframework.cloud</groupId>
+	<artifactId>spring-cloud-netflix-turbine</artifactId>
+</dependency>
+<dependency>
+	<groupId>org.springframework.boot</groupId>
+	<artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+
+<dependency>
+	<groupId>org.springframework.boot</groupId>
+	<artifactId>spring-boot-starter-test</artifactId>
+	<scope>test</scope>
+</dependency>
+
+（2）Application
+
+@SpringBootApplication
+@EnableTurbine
+public class HystrixTurbineServer {
+
+    public static void main(String[] args) {
+        new SpringApplicationBuilder(HystrixTurbineServer.class).web(true).run(args);
+    }
+	
+}
+
+（3）application.yml
+
+spring:
+  application.name: hystrix-terbine-server
+server:
+  port: 8765
+security.basic.enabled: false
+turbine:
+  aggregator:
+    clusterConfig: default   
+  appConfig: say-hello-service
+  clusterNameExpression: new String("default")
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
+
+（4）对say-hello-service每个服务实例都访问几次
+
+http://localhost:8762/hystrix	  
+
+stream输入：http://localhost:8765/turbine.stream
+
+在dashboard可以看到两个服务实例聚合起来的指标
+	  

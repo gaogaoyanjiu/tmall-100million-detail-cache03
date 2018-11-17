@@ -1,0 +1,133 @@
+
+多个服务共享相同的配置，举个例子，数据库连接，redis连接，还有别的一些东西，包括一些降级开关，等等
+
+用config统一配置中心
+
+1、创建工程config-server
+
+2、pom.xml
+
+<parent>
+	<groupId>org.springframework.boot</groupId>
+	<artifactId>spring-boot-starter-parent</artifactId>
+	<version>1.5.2.RELEASE</version>
+	<relativePath/> <!-- lookup parent from repository -->
+</parent>
+
+<properties>
+	<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+	<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+	<java.version>1.8</java.version>
+</properties>
+
+<dependencies>
+	<dependency>
+		<groupId>org.springframework.cloud</groupId>
+		<artifactId>spring-cloud-config-server</artifactId>
+	</dependency>
+
+	<dependency>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-test</artifactId>
+		<scope>test</scope>
+	</dependency>
+
+	<dependency>
+		<groupId>org.springframework.cloud</groupId>
+		<artifactId>spring-cloud-starter-eureka</artifactId>
+	</dependency>
+</dependencies>
+
+<dependencyManagement>
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-dependencies</artifactId>
+			<version>Camden.SR6</version>
+			<type>pom</type>
+			<scope>import</scope>
+		</dependency>
+	</dependencies>
+</dependencyManagement>
+
+<build>
+	<plugins>
+		<plugin>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-maven-plugin</artifactId>
+		</plugin>
+	</plugins>
+</build>
+
+<repositories>
+	<repository>
+		<id>spring-milestones</id>
+		<name>Spring Milestones</name>
+		<url>https://repo.spring.io/milestone</url>
+		<snapshots>
+			<enabled>false</enabled>
+		</snapshots>
+	</repository>
+</repositories>
+
+2、Application
+
+@SpringBootApplication
+@EnableConfigServer
+public class ConfigServerApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(ConfigServerApplication.class, args);
+    }
+}
+
+3、公开的git仓库
+
+spring cloud config，配置文件，用的是properties的格式，基于git去做
+
+账号：roncoo-eshop
+密码：roncoo123456
+仓库地址：https://github.com/roncoo-eshop/roncoo-eshop-config
+
+git怎么用，我不讲解了，自己百度或者找资料
+
+3、application.properties
+
+spring.application.name=config-server
+server.port=8767
+
+spring.cloud.config.server.git.uri=https://github.com/roncoo-eshop/roncoo-eshop-config
+spring.cloud.config.server.git.searchPaths=config-file
+spring.cloud.config.label=master
+spring.cloud.config.server.git.username=roncoo-eshop
+spring.cloud.config.server.git.password=roncoo123456
+
+4、访问http://localhost:8767/name/dev
+
+5、重构greeting-service
+
+配置一个默认的name，如果前端没有传递name参数，直接取用默认的name
+
+（1）pom.xml
+
+<dependency>
+	<groupId>org.springframework.cloud</groupId>
+	<artifactId>spring-cloud-starter-config</artifactId>
+</dependency>
+
+（2）application.yml -> bootstrap.properties
+
+spring.application.name=config-client
+spring.cloud.config.label=master
+spring.cloud.config.profile=dev
+spring.cloud.config.uri= http://localhost:8767/
+server.port=8764
+eureka.client.serviceUrl.defaultZone=http://localhost:8761/eureka/
+feign.hystrix.enabled=true
+
+（3）controller
+
+@Value("${defaultName}")
+private String defaultName;
+
+没有传递name的时候，默认用spring cloud config中配置的name
